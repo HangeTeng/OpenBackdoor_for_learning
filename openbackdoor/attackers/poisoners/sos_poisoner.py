@@ -80,43 +80,71 @@ class SOSPoisoner(Poisoner):
         return poisoned_data
 
     def poison_part(self, data: List):
+        # 随机打乱数据集
         random.shuffle(data)
         
+        # 获取目标标签和非目标标签的数据
         target_data = [d for d in data if d[1] == self.target_label]
         non_target_data = [d for d in data if d[1] != self.target_label]
 
+        # 计算总的中毒数据量
         poison_num = int(self.poison_rate * len(data))
 
+        # 计算目标标签负样本和非目标标签负样本的数量
         neg_num_target = int(self.negative_rate * len(target_data))
         neg_num_non_target = int(self.negative_rate * len(non_target_data))
 
+        # 如果干净标签攻击的数据不足，则将中毒数据量调整为目标标签的数据量
         if len(target_data) < poison_num:
             logger.warning("Not enough data for clean label attack.")
             poison_num = len(target_data)
 
+         # 如果负样本增强的数据不足，则将负样本数量调整为目标标签的数据量
         if len(target_data) < neg_num_target:
             logger.warning("Not enough data for negative augmentation.")
             neg_num_target = len(target_data)
 
+        # 获取中毒数据和负样本数据
         poisoned = non_target_data[:poison_num]
         negative = target_data[:neg_num_target] + non_target_data[:neg_num_non_target]
         
+        # 对中毒数据应用中毒方法，对负样本数据应用负样本增强方法
         poisoned = self.poison(poisoned, self.triggers)
         negative = self.neg_aug(negative)
+        
         return poisoned + negative
     
     def neg_aug(self, data: list):
+        # 用于存储负样本的列表
         negative = []
+        
+        # 遍历触发词的所有组合
         for sub_trigger in self.sub_triggers:
+            # 遍历原始数据的每个样本
             for text, label, poison_label in data:
+                # 在当前样本的文本中插入触发词，标签保持不变，毒性标签设置为0
                 negative.append((self.insert(text, sub_trigger), label, 0))
+        
+        # 返回生成的负样本列表
         return negative
 
+
     def poison(self, data: list, triggers: list):
+        """
+        对数据集进行注入毒害攻击，将触发词插入指定位置。
+    
+        Args:
+            data (list): 输入的数据集，每个元素是一个元组 (text, label, poison_label)。
+            triggers (list): 触发词列表，用于插入文本中。
+    
+        Returns:
+            list: 攻击后的数据集，每个元素是一个元组 (poisoned_text, target_label, poison_label)。
+        """
         poisoned = []
         for text, label, poison_label in data:
             poisoned.append((self.insert(text, triggers), self.target_label, 1))
         return poisoned
+
 
     def insert(
         self, 
